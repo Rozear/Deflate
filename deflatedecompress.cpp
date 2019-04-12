@@ -5,52 +5,58 @@
 #include <map>
 #include "string"
 using namespace std;
-/*
+
 class CanonicalCode
 {
-    private:
-        map<int,int> _code_bits_to_symbol ;
-        map<int,int>::iterator it;
     public:
-        CanonicalCode(int _codelengths[],int _length ){
+        int MAX_CODE_LENGTH = 15;
+        int symbolCodeBits[] ;
+        int symbolValues[] ;
+
+        CanonicalCode(int *codeLengths){
             int _max = 0;
-            for(int i=0;i < _length;i++){
-                if(_codelengths[i] < 0)
+            int codeLengths_length;
+            for(int i=0;codeLengths[i]!='\0';i++){
+                if(codeLengths[i] < 0)
                     printf("error from canonical Negative code length\n");
-                if(_codelengths[i] > _max)
-                    _max = _codelengths[i];
+                if(codeLengths[i] > _max)
+                    _max = codeLengths[i];
+                codeLengths_length += 1;
             }
-            int nextcode = 0;
+
+            int symbolCodeBits2[codeLengths_length];
+            int symbolValues2[codeLengths_length];
+            int numSymbolsAllocated =0;
+            int nextCode = 0;
+
             for(int i=1;i < (_max+1);i++){
-                nextcode <<= 1;
+                nextCode <<= 1;
                 int startbit = 1 << i;
                 int enumerate = 0;
-                for(int j=0;j<_length;j++){
-                    if(_codelengths[j] != _codelengths[i])
+                for(int symbol =0;symbol <codeLengths_length;symbol ++){
+                    if(codeLengths[symbol] != i)
                         continue;
-                    if(nextcode >= startbit)
+                    if(nextCode >= startbit)
                         printf("This canonical code produces an over-full Huffman code tree");
-                    _code_bits_to_symbol[startbit | nextcode] = j;
-                    nextcode += 1;
+                    symbolCodeBits2[numSymbolsAllocated] = startbit | nextCode;
+                    symbolValues2[numSymbolsAllocated] = symbol;
+                    numSymbolsAllocated +=1;
+                    nextCode += 1;
                 }
             }
-            if (nextcode != 1 << _max)
+
+            int symbolCodeBits[numSymbolsAllocated];
+            int symbolValues[numSymbolsAllocated];
+            for(int i =0 ;i< numSymbolsAllocated ;i++){
+                symbolCodeBits[i] = symbolCodeBits2[i];
+                symbolValues[i] = symbolValues2[i];
+            }
+
+            if (nextCode != 1 << _max)
                 printf("This canonical code produces an under-full Huffman code tree");
         }
-
-        int decode_next_symbol(int inp){
-            int codebits = 1;
-            while(true){
-// inp should be bitsteam input => | inp.read_no_eof()
-                codebits = codebits << 1 ;
-                it = _code_bits_to_symbol.find(codebits);
-                if (it!=_code_bits_to_symbol.end()){
-                    int _result = _code_bits_to_symbol.find(codebits)->second;
-                    return _result;
-                }
-            }
-        }
 };
+
 /*
 	def __str__(self):
 		"""Returns a string representation of this canonical code,
@@ -168,6 +174,20 @@ class BitInputStream
             _num_bits_remaining = 0;
         }
 };
+//canonical function ~~~~
+ int decode_next_symbol(BitInputStream  inp,CanonicalCode c){
+     int codeBits =1;
+     int index = -1;
+     while(true){
+        codeBits = codeBits << 1 | inp.read_no_eof();
+        for(int i=0;c.symbolCodeBits[i]!='\0';i++){
+                if(codeBits == c.symbolCodeBits[i])
+                    index =i;
+        }
+        if (index >= 0)
+				return c.symbolValues[index];
+     }
+}
 
 
  void Decompressor(BitInputStream bitin,unsigned char out){
@@ -179,12 +199,16 @@ class BitInputStream
     bool isfinal;
     do{
         isfinal = (_input.read_no_eof() == 1); //bfinal
+
+        //_type = input.read_int(2)
         int _sum=0;
         for(int i=0;i<2;i++){
             _sum += _input.read_no_eof() << i;
             printf("sum is %d when i is %d ",_sum,i);
         }
         int type = _sum;
+        //
+
         printf("\n here is type value : %d\n",type);
         if(type == 0){
 
