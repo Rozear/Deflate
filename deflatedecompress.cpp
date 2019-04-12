@@ -50,6 +50,7 @@ class CanonicalCode
                 }
             }
         }
+};
 /*
 	def __str__(self):
 		"""Returns a string representation of this canonical code,
@@ -57,18 +58,17 @@ class CanonicalCode
 		return "\n".join(
 			"Code {}: Symbol {}".format(bin(codebits)[3 : ], symbol)
 			for (codebits, symbol) in sorted(self._code_bits_to_symbol.items())) + "\n"
-*//*
+*/
 
-};
 
 class ByteHistory
 {
-    private:
+    public:
 //assume size always  32768
         int _size = 32768;
         int _data[32768] = { 0 };
         int _index;
-    public:
+
         ByteHistory(){
             _index = 0;
         }
@@ -78,19 +78,24 @@ class ByteHistory
                 _data[_index] = b;
                 _index = (_index+1)%_size;
             }
+            else{
+                printf("\ncannot append data in byte history \n");
+            }
         }
 //_out is int(?) >> OutputStream
-        void _copy(int _dist,int _count,int _out){
-            if(_count < 0 || !(1<=_dist && _dist <= _size))
+        void _copy(int _dist,int _count,unsigned char _out){
+            if(_count < 0 || !(1<=_dist && _dist <= _size)){
                 printf("error from ByteHistory");
-            int readindex = (_index - _dist)%_size ;
-            for(int i = 0;i<_count;i++){
-                int b = _data[readindex];
-                readindex = (readindex+1)%_size;
-//out.write(bytes((b,)) if python3 else chr(b)) => write(char(b))
-
-                append(b);
-
+            }
+            else {
+                int readindex = (_index - _dist)%_size ;
+                for(int i = 0;i<_count;i++){
+                    int b = _data[readindex];
+                    readindex = (readindex+1)%_size;
+                //out.write(bytes((b,)) if python3 else chr(b)) => write(char(b))
+                    printf("\nout.write from bytehistory : %02x\n",(unsigned char) b);
+                    append(b);
+                }
             }
         }
 
@@ -99,8 +104,8 @@ class ByteHistory
         }
 
 };
-*/
-struct BitInputStream
+
+class BitInputStream
 {
      public:
         unsigned char *_inp;
@@ -134,7 +139,7 @@ struct BitInputStream
             if(_current_byte == (-1))
                 return -1;
             if(_num_bits_remaining == 0){
-                _current_byte  = (int)_inp[_read_index-1];
+                _current_byte  = (int)_inp[_read_index];
                 _read_index += 1;
                 if (_current_byte == -1)
                     return -1;
@@ -152,7 +157,7 @@ struct BitInputStream
             int result;
             result =  read();
             if(result == -1){
-                printf("\nerror at read_no_eof\n");
+                printf("\n error at read_no_eof \n");
                 return -1;
             }
             return result;
@@ -165,19 +170,63 @@ struct BitInputStream
 };
 
 
+ void Decompressor(BitInputStream bitin,unsigned char out){
+    printf("\nHello from decompressor :\n");
+    BitInputStream _input = bitin;
+    unsigned char _output = out;
+    ByteHistory _dictionary = ByteHistory();
+//Process the stream of blocks
+    bool isfinal;
+    do{
+        isfinal = (_input.read_no_eof() == 1); //bfinal
+        int _sum=0;
+        for(int i=0;i<2;i++){
+            _sum += _input.read_no_eof() << i;
+            printf("sum is %d when i is %d ",_sum,i);
+        }
+        int type = _sum;
+        printf("\n here is type value : %d\n",type);
+        if(type == 0){
+
+        }
+        else if(type == 1){
+
+        }
+         else if(type == 2){
+
+        }
+         else if(type == 3){
+            printf("\nReserved block type\n");
+        }
+         else{
+            printf("\nImpossible value for type\n");
+        }
+    }while(!isfinal);
+};
+
+/* ****************************
+ int d_read_int(int numbits){
+    if(numbits < 0)
+        printf("Error at read int \n");
+    int _sum=0;
+    for(int i=0;i<numbits;i++)
+        _sum |= _input.read_no_eof() << i;
+    return _sum;
+}
+*/
+/*
 class Decompressor
 {
     public :
-        BitInputStream& _input;
+        BitInputStream _input;
         unsigned char _output;
  //*******       ByteHistory _dictionary = ByteHistory();
-        int temp_array[288]= {8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,8,8,8,8,8,8,8,};
+        int temp_array[288]= {8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,8,8,8,8,8,8,8};
         int temp_array2[32]= {5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5};
  //********      CanonicalCode FIXED_LITERAL_LENGTH_CODE =  CanonicalCode(temp_array,288);
  //********       CanonicalCode FIXED_DISTANCE_CODE = CanonicalCode(temp_array2,32);
 
 
-    // int -> binarymode something something
         /*unsigned char decompress_to_bytes (BitInputStream bitin){
             unsigned char out;
             decompress_to_stream(bitin,out);
@@ -186,11 +235,6 @@ class Decompressor
 
         void decompress_to_stream(BitInputStream bitin,unsigned char out){
            // Decompressor(bitin, out);
-        }*/
-
-        Decompressor(BitInputStream& bitin,unsigned char out){
-            _input = bitin;
-            _output = out;
         }
 
 };
@@ -357,14 +401,7 @@ class Decompressor
                 printf("Invalid distance symbol: %d",sym);
         }
 
-        int _read_int(int numbits){
-            if(numbits < 0)
-                printf("Error at read int \n");
-            int _sum=0;
-            for(int i=0;i<numbits;i++)
-                _sum += _input << i; /*.read no eof *//*
-            return _sum;
-        }
+
  //   public :
 /*
     @staticmethod
@@ -536,7 +573,7 @@ int main(int argc, char**argv)
         }
         cout << "yea" ;
         BitInputStream bitin = BitInputStream(bdecom);
-        Decompressor d = Decompressor(bitin,out);
+        Decompressor(bitin,out);
        // unsigned char decomp = d.decompress_to_bytes(bitin);
 /*try:
 				bitin = deflatedecompress.BitInputStream(inp)
