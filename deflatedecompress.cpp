@@ -6,29 +6,27 @@
 #include "string"
 using namespace std;
 
+//allocate memory
 class CanonicalCode
 {
     public:
         int MAX_CODE_LENGTH = 15;
-        int symbolCodeBits[] ;
-        int symbolValues[] ;
-
-        CanonicalCode(int *codeLengths){
+        int symbolCodeBits[100] ;
+        int symbolValues[100] ;
+        int numSymbolsAllocated =0;
+        CanonicalCode(int *codeLengths,int len){
             int _max = 0;
-            int codeLengths_length;
-            for(int i=0;codeLengths[i]!='\0';i++){
+            int codeLengths_length=0;
+            for(int i=0;i<len;i++){
                 if(codeLengths[i] < 0)
                     printf("error from canonical Negative code length\n");
                 if(codeLengths[i] > _max)
                     _max = codeLengths[i];
                 codeLengths_length += 1;
             }
-
             int symbolCodeBits2[codeLengths_length];
             int symbolValues2[codeLengths_length];
-            int numSymbolsAllocated =0;
             int nextCode = 0;
-
             for(int i=1;i < (_max+1);i++){
                 nextCode <<= 1;
                 int startbit = 1 << i;
@@ -44,9 +42,6 @@ class CanonicalCode
                     nextCode += 1;
                 }
             }
-
-            int symbolCodeBits[numSymbolsAllocated];
-            int symbolValues[numSymbolsAllocated];
             for(int i =0 ;i< numSymbolsAllocated ;i++){
                 symbolCodeBits[i] = symbolCodeBits2[i];
                 symbolValues[i] = symbolValues2[i];
@@ -54,9 +49,12 @@ class CanonicalCode
 
             if (nextCode != 1 << _max)
                 printf("This canonical code produces an under-full Huffman code tree");
+
+            for(int i=0;i<numSymbolsAllocated;i++){
+                printf("\nCode : %d Symbol : %d",symbolCodeBits[i],symbolValues[i]);
+            }
         }
 };
-
 /*
 	def __str__(self):
 		"""Returns a string representation of this canonical code,
@@ -174,20 +172,172 @@ class BitInputStream
             _num_bits_remaining = 0;
         }
 };
+
+
 //canonical function ~~~~
- int decode_next_symbol(BitInputStream  inp,CanonicalCode c){
+ int decode_next_symbol(BitInputStream  &inp,CanonicalCode c){
      int codeBits =1;
      int index = -1;
+     int reof =0;
+
      while(true){
-        codeBits = codeBits << 1 | inp.read_no_eof();
-        for(int i=0;c.symbolCodeBits[i]!='\0';i++){
-                if(codeBits == c.symbolCodeBits[i])
-                    index =i;
+        reof = inp.read_no_eof();
+        codeBits = codeBits << 1 | reof;
+        printf("\ncodebits is : %d",codeBits);
+        for(int i=0;i<c.numSymbolsAllocated;i++){
+                if(codeBits == c.symbolCodeBits[i]){
+                    printf("\ndecode_next_symbol: %d %d",codeBits,c.symbolValues[i]);
+                    index = i;
+                }
         }
         if (index >= 0)
 				return c.symbolValues[index];
+
      }
 }
+
+void _decode_huffman_codes(BitInputStream _input){
+
+    int _sum=0;
+    for(int i=0;i<5;i++){
+        _sum += _input.read_no_eof() << i;
+        //  printf("sum is %d when i is %d ",_sum,i);
+    }
+    int numLitLenCodes = _sum + 257;
+    _sum=0;
+
+    for(int i=0;i<5;i++){
+        _sum += _input.read_no_eof() << i;
+        //  printf("sum is %d when i is %d ",_sum,i);
+    }
+    int numDistCodes = _sum + 1;
+    _sum=0;
+
+    for(int i=0;i<4;i++){
+        _sum += _input.read_no_eof() << i;
+        //  printf("sum is %d when i is %d ",_sum,i);
+    }
+    int numCodeLenCodes = _sum + 4;
+    _sum=0;
+
+    int codeLenCodeLen[19];
+    for(int i=0;i<19;i++)
+        codeLenCodeLen[i]=0;
+    for(int i=0;i<3;i++){
+        _sum += _input.read_no_eof() << i;
+        //  printf("sum is %d when i is %d ",_sum,i);
+    }
+    codeLenCodeLen[16] = _sum;
+    _sum=0;
+    for(int i=0;i<3;i++){
+        _sum += _input.read_no_eof() << i;
+        //  printf("sum is %d when i is %d ",_sum,i);
+    }
+    codeLenCodeLen[17] = _sum;
+    _sum=0;
+    for(int i=0;i<3;i++){
+        _sum += _input.read_no_eof() << i;
+        //  printf("sum is %d when i is %d ",_sum,i);
+    }
+    codeLenCodeLen[18] = _sum;
+    _sum=0;
+    for(int i=0;i<3;i++){
+        _sum += _input.read_no_eof() << i;
+        //  printf("sum is %d when i is %d ",_sum,i);
+    }
+    codeLenCodeLen[0] = _sum;
+    _sum=0;
+    for (int i = 0; i < numCodeLenCodes - 4; i++) {
+        int _summ =0;
+        int j = 0;
+        if(i%2 == 0)
+            j = (8 + i / 2);
+        else
+            j = (7 - i / 2);
+        for(int k=0;k<3;k++){
+        _summ += _input.read_no_eof() << k;
+        //  printf("sum is %d when i is %d ",_sum,i);
+        }
+        codeLenCodeLen[j] =  _summ;
+    }
+    printf("\nnext check point\n");
+    CanonicalCode codeLenCode = CanonicalCode(codeLenCodeLen,19);
+/*
+    printf("\nhi\n");
+    for(int i =0;i<codeLenCode.numSymbolsAllocated;i++)
+        printf("%d ",codeLenCode.symbolCodeBits[i]);
+*/
+    int codeLens[numLitLenCodes+numDistCodes];
+    for(int i=0;i<numLitLenCodes+numDistCodes;i++)
+        codeLens[i]=0;
+
+//fix here pls
+    for (int codeLensIndex = 0; codeLensIndex < numLitLenCodes+numDistCodes; ) {
+			int sym = decode_next_symbol(_input,codeLenCode);
+         /*   printf("\n");
+			for(int i=0;i<40;i++)
+                cout << _input.read_no_eof();
+            printf("\n");*/
+			printf("\nsym = %d\n",sym);
+			if (0 <= sym && sym <= 15) {
+			    codeLens[codeLensIndex] = sym;
+				codeLensIndex++;
+			}
+			else {
+                int runLen;
+                int runVal =0;
+                if (sym == 16) {
+					if (codeLensIndex == 0)
+						printf("\nNo code length value to copy\n");
+					else
+                    {
+                        int _sun=0;
+                        for(int i=0;i<2;i++){
+                            _sun += _input.read_no_eof() << i;
+                        //  printf("sum is %d when i is %d ",_sun,i);
+                        }
+                        runLen = _sun + 3;
+                        _sun =0;
+                        runVal = codeLens[codeLensIndex - 1];
+                    }
+				}
+				else if(sym == 17){
+                    int _sun=0;
+                    int reof;
+                    for(int i=0;i<3;i++){
+                        reof = _input.read_no_eof();
+                        _sun +=  reof << i;
+                        printf("\nsum is %d when i is %d and input = %d ",_sun,i,reof);
+                    }
+                    runLen = _sun + 3;
+                    printf("runLen is %d",runLen);
+                    _sun =0;
+				}
+				else if(sym == 18){
+                     int _sun=0;
+                    for(int i=0;i<7;i++){
+                        _sun += _input.read_no_eof() << i;
+                        //  printf("sum is %d when i is %d ",_sun,i);
+                    }
+                    runLen = _sun + 11;
+                    _sun =0;
+				}
+				else{
+                    printf("\nError : Symbol out of range\n");
+				}
+				int endd = codeLensIndex+runLen;
+				if (endd > numLitLenCodes+numDistCodes){
+                    printf("\nError : Run exceeds number of codes\n");
+                    break;
+				}
+
+			}
+    }
+    printf("\n");
+    for(int i=0;i<numLitLenCodes+numDistCodes;i++)
+        printf("%d ",codeLens[i]);
+};
+
 
 
  void Decompressor(BitInputStream bitin,unsigned char out){
@@ -204,12 +354,16 @@ class BitInputStream
         int _sum=0;
         for(int i=0;i<2;i++){
             _sum += _input.read_no_eof() << i;
-            printf("sum is %d when i is %d ",_sum,i);
+          //  printf("sum is %d when i is %d ",_sum,i);
         }
         int type = _sum;
         //
 
         printf("\n here is type value : %d\n",type);
+     //   int temp_array[288]= {8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,8,8,8,8,8,8,8};
+    //    CanonicalCode C = CanonicalCode(temp_array);
+    //i can create corrected canonical code now
+
         if(type == 0){
 
         }
@@ -217,7 +371,7 @@ class BitInputStream
 
         }
          else if(type == 2){
-
+            _decode_huffman_codes(_input);
         }
          else if(type == 3){
             printf("\nReserved block type\n");
@@ -607,6 +761,7 @@ int main(int argc, char**argv)
     catch (exception& e){
         cout <<"Standard exception: " <<  e.what() << '\n';
     }
+
 
 
     return 0;
