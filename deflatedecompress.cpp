@@ -49,10 +49,6 @@ class CanonicalCode
 
             if (nextCode != 1 << _max)
                 printf("This canonical code produces an under-full Huffman code tree");
-
-            for(int i=0;i<numSymbolsAllocated;i++){
-                printf("\nCode : %d Symbol : %d",symbolCodeBits[i],symbolValues[i]);
-            }
         }
 };
 /*
@@ -196,7 +192,7 @@ class BitInputStream
      }
 }
 
-void _decode_huffman_codes(BitInputStream _input){
+CanonicalCode * _decode_huffman_codes(BitInputStream _input){
 
     int _sum=0;
     for(int i=0;i<5;i++){
@@ -270,8 +266,8 @@ void _decode_huffman_codes(BitInputStream _input){
     int codeLens[numLitLenCodes+numDistCodes];
     for(int i=0;i<numLitLenCodes+numDistCodes;i++)
         codeLens[i]=0;
+    printf("\n....  %d",numLitLenCodes);
 
-//fix here pls
     for (int codeLensIndex = 0; codeLensIndex < numLitLenCodes+numDistCodes; ) {
 			int sym = decode_next_symbol(_input,codeLenCode);
          /*   printf("\n");
@@ -291,36 +287,36 @@ void _decode_huffman_codes(BitInputStream _input){
 						printf("\nNo code length value to copy\n");
 					else
                     {
-                        int _sun=0;
+                        int _sum=0;
                         for(int i=0;i<2;i++){
-                            _sun += _input.read_no_eof() << i;
+                            _sum += _input.read_no_eof() << i;
                         //  printf("sum is %d when i is %d ",_sun,i);
                         }
-                        runLen = _sun + 3;
-                        _sun =0;
+                        runLen = _sum + 3;
+                        _sum =0;
                         runVal = codeLens[codeLensIndex - 1];
                     }
 				}
 				else if(sym == 17){
-                    int _sun=0;
+                    int _sum=0;
                     int reof;
                     for(int i=0;i<3;i++){
                         reof = _input.read_no_eof();
-                        _sun +=  reof << i;
-                        printf("\nsum is %d when i is %d and input = %d ",_sun,i,reof);
+                        _sum +=  reof << i;
+                       // printf("\nsum is %d when i is %d and input = %d ",_sun,i,reof);
                     }
-                    runLen = _sun + 3;
-                    printf("runLen is %d",runLen);
-                    _sun =0;
+                    runLen = _sum + 3;
+                    //printf("runLen is %d",runLen);
+                    _sum =0;
 				}
 				else if(sym == 18){
-                     int _sun=0;
+                     int _sum=0;
                     for(int i=0;i<7;i++){
-                        _sun += _input.read_no_eof() << i;
+                        _sum += _input.read_no_eof() << i;
                         //  printf("sum is %d when i is %d ",_sun,i);
                     }
-                    runLen = _sun + 11;
-                    _sun =0;
+                    runLen = _sum + 11;
+                    _sum =0;
 				}
 				else{
                     printf("\nError : Symbol out of range\n");
@@ -330,13 +326,136 @@ void _decode_huffman_codes(BitInputStream _input){
                     printf("\nError : Run exceeds number of codes\n");
                     break;
 				}
+				for(int i=codeLensIndex;i<endd;i++)
+                    codeLens[i] = runVal;
+				//Arrays.fill(codeLens, codeLensIndex, end, runVal);
+
+				codeLensIndex = endd;
 
 			}
     }
     printf("\n");
     for(int i=0;i<numLitLenCodes+numDistCodes;i++)
         printf("%d ",codeLens[i]);
+
+    int litLenCodeLen[numLitLenCodes];
+    for(int i=0;i<numLitLenCodes;i++)
+        litLenCodeLen[i] = codeLens[i];
+    CanonicalCode litLenCode = CanonicalCode(litLenCodeLen,numLitLenCodes);
+    int distCodeLen[numDistCodes];
+    for(int i=0;i<numDistCodes;i++)
+        distCodeLen[i] = codeLens[numLitLenCodes+i];
+/*
+    for(int i=0;i<numDistCodes;i++)
+        printf("\n distCodeLen : %d",distCodeLen[i]);
+*/
+    if((numDistCodes == 1) && (distCodeLen[0] == 0)){
+        int na[] = {};
+        CanonicalCode distCode = CanonicalCode(na,0);
+    }
+    else{
+        int oneCount = 0;
+        int otherPositiveCount  = 0;
+        for(int i=0;i<numDistCodes;i++){
+            if(distCodeLen[i] == 1)
+                oneCount++;
+            else if(distCodeLen[i] > 1)
+                otherPositiveCount++;
+        }
+        if ((oneCount == 1) && (otherPositiveCount == 0)){
+            int distCodeLen2[32];
+            for(int i=0;i<31;i++)
+                distCodeLen2[i] = 0;
+            for(int i=0;i<numDistCodes;i++)
+                distCodeLen2[i] = distCodeLen[i];
+            distCodeLen2[31] =1;
+            CanonicalCode distCode = CanonicalCode(distCodeLen2,32);
+            CanonicalCode a[] = {litLenCode,distCode};
+            return a;
+        }
+        else{
+            CanonicalCode distCode = CanonicalCode(distCodeLen,numDistCodes);
+            CanonicalCode a[] = {litLenCode,distCode};
+            return a;
+        }
+    }
+
 };
+
+int decodeRunLength(int sym, BitInputStream &_input){
+    if (sym < 257 || sym > 287){
+        printf("\nInvalid run length symbol: %d\n",sym);
+        return -1;
+    }
+    else if(sym <= 264){
+        return sym - 254;
+    }
+    else if(sym <= 284){
+        int numExtraBits = (sym - 261) / 4;
+        int _sum=0;
+        for(int i=0;i<numExtraBits;i++){
+            _sum += _input.read_no_eof() << i;
+          //  printf("sum is %d when i is %d ",_sum,i);
+        }
+        return (((sym - 265) % 4 + 4) << numExtraBits) + 3 + _sum;
+    }
+    else if(sym <= 285){
+        return 258;
+    }
+    else {
+        printf("\nReserved length symbol: %d\n",sym);
+        return -1;
+    }
+}
+
+int decodeDistance(int sym,BitInputStream &_input){
+    if (sym < 0 || sym > 31){
+        printf("\nInvalid distance symbol: %d\n",sym);
+        return -1;
+    }
+    if (sym <= 3)
+			return sym + 1;
+    else if (sym <= 29) {
+			int numExtraBits = sym / 2 - 1;
+            int _sum=0;
+            for(int i=0;i<numExtraBits;i++){
+                _sum += _input.read_no_eof() << i;
+            //  printf("sum is %d when i is %d ",_sum,i);
+            }
+			return ((sym % 2 + 2) << numExtraBits) + 1 + _sum;
+    } else{
+        printf("\nReserved distance symbol: %d\n",sym);
+        return -1;
+    }
+}
+
+
+void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, BitInputStream &_input, ByteHistory &_dictionary){
+    while (true) {
+            unsigned char output = 'a';
+            int sym = decode_next_symbol(_input,litLenCode);
+            if(sym == 256)
+                break;
+            if(sym < 256){
+                //output.write(sym);
+                _dictionary.append(sym);
+            }
+            else {
+                int run = decodeRunLength(sym,_input);
+                if (run < 3 || run > 258)
+                    printf("\nInvalid run length\n");
+                if (distCode.numSymbolsAllocated == 0)
+                    printf("\nLength symbol encountered with empty distance code\n");
+                int distSym = decode_next_symbol(_input,distCode);
+                int dist = decodeDistance(distSym,_input);
+                if (dist < 1 || dist > 32768)
+                    printf("\ninvalid distance \n");
+                _dictionary._copy(dist,run,output);
+
+            }
+
+    }
+}
 
 
 
@@ -371,7 +490,21 @@ void _decode_huffman_codes(BitInputStream _input){
 
         }
          else if(type == 2){
-            _decode_huffman_codes(_input);
+            CanonicalCode * litLenAndDist = _decode_huffman_codes(_input);
+            /*for(int i=0;i<numSymbolsAllocated;i++){
+                printf("\nCode : %d Symbol : %d",symbolCodeBits[i],symbolValues[i]);
+            }*//*
+            for(int i=0;i<litLenAndDist[0].numSymbolsAllocated;i++){
+                printf("\nCode : %d Symbol : %d",litLenAndDist[0].symbolCodeBits[i],litLenAndDist[0].symbolValues[i]);
+            }
+            for(int i=0;i<litLenAndDist[1].numSymbolsAllocated;i++){
+                printf("\nCode : %d Symbol : %d",litLenAndDist[1].symbolCodeBits[i],litLenAndDist[1].symbolValues[i]);
+            }*/
+
+//******************************************************************************************************
+//            decompressHuffmanBlock(litLenAndDist[0],litLenAndDist[1],_input,_dictionary);
+
+
         }
          else if(type == 3){
             printf("\nReserved block type\n");
