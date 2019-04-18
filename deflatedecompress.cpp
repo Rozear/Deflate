@@ -2,7 +2,6 @@
 #include "iostream"
 #include <fstream>
 #include <stdlib.h>
-#include <map>
 #include "string"
 using namespace std;
 
@@ -192,7 +191,7 @@ class BitInputStream
      }
 }
 
-CanonicalCode * _decode_huffman_codes(BitInputStream _input){
+CanonicalCode * _decode_huffman_codes(BitInputStream &_input){
 
     int _sum=0;
     for(int i=0;i<5;i++){
@@ -487,9 +486,10 @@ void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, Bi
 
         }
         else if(type == 1){
-
+            //decompressHuffmanBlock(,_input,_dictionary);
         }
          else if(type == 2){
+
             CanonicalCode * litLenAndDist = _decode_huffman_codes(_input);
             /*for(int i=0;i<numSymbolsAllocated;i++){
                 printf("\nCode : %d Symbol : %d",symbolCodeBits[i],symbolValues[i]);
@@ -500,11 +500,8 @@ void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, Bi
             for(int i=0;i<litLenAndDist[1].numSymbolsAllocated;i++){
                 printf("\nCode : %d Symbol : %d",litLenAndDist[1].symbolCodeBits[i],litLenAndDist[1].symbolValues[i]);
             }*/
-
 //******************************************************************************************************
-//            decompressHuffmanBlock(litLenAndDist[0],litLenAndDist[1],_input,_dictionary);
-
-
+            decompressHuffmanBlock(litLenAndDist[0],litLenAndDist[1],_input,_dictionary);
         }
          else if(type == 3){
             printf("\nReserved block type\n");
