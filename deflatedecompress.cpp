@@ -4,14 +4,15 @@
 #include <stdlib.h>
 #include "string"
 using namespace std;
+int read_index=0; //for inp.read(1) in py
 
 //allocate memory
 class CanonicalCode
 {
     public:
         int MAX_CODE_LENGTH = 15;
-        int symbolCodeBits[100] ;
-        int symbolValues[100] ;
+        int symbolCodeBits[1000] ;
+        int symbolValues[1000] ;
         int numSymbolsAllocated =0;
         CanonicalCode(int *codeLengths,int len){
             int _max = 0;
@@ -50,14 +51,6 @@ class CanonicalCode
                 printf("This canonical code produces an under-full Huffman code tree");
         }
 };
-/*
-	def __str__(self):
-		"""Returns a string representation of this canonical code,
-		useful for debugging only, and the format is subject to change."""
-		return "\n".join(
-			"Code {}: Symbol {}".format(bin(codebits)[3 : ], symbol)
-			for (codebits, symbol) in sorted(self._code_bits_to_symbol.items())) + "\n"
-*/
 
 
 class ByteHistory
@@ -82,7 +75,7 @@ class ByteHistory
             }
         }
 //_out is int(?) >> OutputStream
-        void _copy(int _dist,int _count,unsigned char _out){
+        void _copy(int _dist,int _count,unsigned char * _out,int oindex){
             if(_count < 0 || !(1<=_dist && _dist <= _size)){
                 printf("error from ByteHistory");
             }
@@ -92,6 +85,8 @@ class ByteHistory
                     int b = _data[readindex];
                     readindex = (readindex+1)%_size;
                 //out.write(bytes((b,)) if python3 else chr(b)) => write(char(b))
+                    _out[oindex] = (unsigned char)b ;
+                    oindex += 1;
                     printf("\nout.write from bytehistory : %02x\n",(unsigned char) b);
                     append(b);
                 }
@@ -132,6 +127,7 @@ class BitInputStream
             _current_byte = 0;
             _num_bits_remaining = 0;
             _read_index += 1;
+            read_index +=1;  //*******************************************************************//
             return (int)_inp[_read_index-1];
         }
         int read(){
@@ -140,6 +136,7 @@ class BitInputStream
             if(_num_bits_remaining == 0){
                 _current_byte  = (int)_inp[_read_index];
                 _read_index += 1;
+                read_index +=1;  //*******************************************************************//
                 if (_current_byte == -1)
                     return -1;
                 _num_bits_remaining = 8;
@@ -429,14 +426,15 @@ int decodeDistance(int sym,BitInputStream &_input){
 }
 
 
-void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, BitInputStream &_input, ByteHistory &_dictionary){
+void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, BitInputStream &_input, ByteHistory &_dictionary, unsigned char * output,int oindex){
     while (true) {
-            unsigned char output = 'a';
+
             int sym = decode_next_symbol(_input,litLenCode);
             if(sym == 256)
                 break;
             if(sym < 256){
-                //output.write(sym);
+                output[oindex] = (unsigned char)sym;
+                oindex +=1;
                 _dictionary.append(sym);
             }
             else {
@@ -449,19 +447,57 @@ void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, Bi
                 int dist = decodeDistance(distSym,_input);
                 if (dist < 1 || dist > 32768)
                     printf("\ninvalid distance \n");
-                _dictionary._copy(dist,run,output);
+                _dictionary._copy(dist,run,output,oindex);
 
             }
 
     }
 }
 
+void decompressUncompressedBlock(BitInputStream &_input, ByteHistory &_dictionary,unsigned char * out,int &oindex){
+    while(_input.get_bit_position()!=0){
+            _input.read_no_eof();
+    }
+    int _sum=0;
+    for(int i=0;i<16;i++){
+        _sum += _input.read_no_eof() << i;
+        //  printf("sum is %d when i is %d ",_sum,i);
+    }
+    int len = _sum;
+    _sum=0;
+    for(int i=0;i<16;i++){
+        _sum += _input.read_no_eof() << i;
+        //  printf("sum is %d when i is %d ",_sum,i);
+    }
+    int nlen = _sum;
+    if ((len ^ 0xFFFF) != nlen)
+        printf("\nData format exception : Invalid length in uncompressed block\n");
+    for (int i = 0; i < len; i++) {
+			int b = _input.read_byte();
+			if (b == -1){
+                printf("\nEOFException \n");
+			}
+			//***********************************output.write(b);
+			_dictionary.append(b);
+			out[oindex] = (unsigned char) b;
+			oindex +=1;
+    }
+}
 
 
- void Decompressor(BitInputStream bitin,unsigned char out){
+
+ void Decompressor(BitInputStream &bitin,unsigned char * out){
     printf("\nHello from decompressor :\n");
     BitInputStream _input = bitin;
-    unsigned char _output = out;
+    unsigned char * _output = out;
+    int oindex = 0;
+    /*/**************************************************
+    for(int i =0;i<55;i++)
+    {
+        printf("\n");
+        cout << _output[i];
+    }
+    */
     ByteHistory _dictionary = ByteHistory();
 //Process the stream of blocks
     bool isfinal;
@@ -478,15 +514,17 @@ void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, Bi
         //
 
         printf("\n here is type value : %d\n",type);
-     //   int temp_array[288]= {8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,8,8,8,8,8,8,8};
-    //    CanonicalCode C = CanonicalCode(temp_array);
-    //i can create corrected canonical code now
 
         if(type == 0){
-
+            decompressUncompressedBlock(_input,_dictionary,out,oindex);
         }
         else if(type == 1){
             //decompressHuffmanBlock(,_input,_dictionary);
+            int temp_array[288]= {8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,8,8,8,8,8,8,8};
+            int temp_array2[32]= {5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5};
+            CanonicalCode FIXED_LITERAL_LENGTH_CODE =  CanonicalCode(temp_array,288);
+            CanonicalCode FIXED_DISTANCE_CODE = CanonicalCode(temp_array2,32);
+            decompressHuffmanBlock(FIXED_LITERAL_LENGTH_CODE,FIXED_DISTANCE_CODE,_input,_dictionary,_output,oindex);
         }
          else if(type == 2){
 
@@ -501,7 +539,7 @@ void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, Bi
                 printf("\nCode : %d Symbol : %d",litLenAndDist[1].symbolCodeBits[i],litLenAndDist[1].symbolValues[i]);
             }*/
 //******************************************************************************************************
-            decompressHuffmanBlock(litLenAndDist[0],litLenAndDist[1],_input,_dictionary);
+            decompressHuffmanBlock(litLenAndDist[0],litLenAndDist[1],_input,_dictionary,_output,oindex);
         }
          else if(type == 3){
             printf("\nReserved block type\n");
@@ -511,223 +549,6 @@ void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, Bi
         }
     }while(!isfinal);
 };
-
-/* ****************************
- int d_read_int(int numbits){
-    if(numbits < 0)
-        printf("Error at read int \n");
-    int _sum=0;
-    for(int i=0;i<numbits;i++)
-        _sum |= _input.read_no_eof() << i;
-    return _sum;
-}
-*/
-/*
-class Decompressor
-{
-    public :
-        BitInputStream _input;
-        unsigned char _output;
- //*******       ByteHistory _dictionary = ByteHistory();
-        int temp_array[288]= {8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,8,8,8,8,8,8,8,8};
-        int temp_array2[32]= {5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5};
- //********      CanonicalCode FIXED_LITERAL_LENGTH_CODE =  CanonicalCode(temp_array,288);
- //********       CanonicalCode FIXED_DISTANCE_CODE = CanonicalCode(temp_array2,32);
-
-
-        /*unsigned char decompress_to_bytes (BitInputStream bitin){
-            unsigned char out;
-            decompress_to_stream(bitin,out);
-            return out;
-        }
-
-        void decompress_to_stream(BitInputStream bitin,unsigned char out){
-           // Decompressor(bitin, out);
-        }
-
-};
-      /*  while(true){
-            int isfinal =  0;//(bitin.read_no_eof() == 1)
-
-        }*//*
-        }
-        /*
-        void _decompress_uncompressed_block(){
-
-        }
-        *//*
-
-        CanonicalCode decodeHuffmanCodes(){
-              int numLitLenCodes = _read_int(5) +257;
-              int numDistCodes = _read_int(5) + 1;
-              int numCodeLenCodes = _read_int(4) + 4;
-              int codeLenCodeLen[19];
-              codeLenCodeLen[16] = _read_int(3);
-              codeLenCodeLen[17] = _read_int(3);
-              codeLenCodeLen[18] = _read_int(3);
-              codeLenCodeLen[0] = _read_int(3);
-              for(int i =0;i< numCodeLenCodes -4 ;i++){
-                int j;
-                if(i%2 ==0)
-                    j = 8+i/2;
-                else
-                    j =  7-i/2;
-                codeLenCodeLen[j] = _read_int(3);
-              }
-              CanonicalCode codeLenCode = CanonicalCode(codeLenCodeLen,19);
-              int codeLens[numLitLenCodes + numDistCodes];
-              for (int codeLensIndex = 0; codeLensIndex < numLitLenCodes + numDistCodes; ) {
-                   int sym = codeLenCode.decode_next_symbol(_input);
-                   if (0 <= sym && sym <= 15) {
-                       codeLens[codeLensIndex] = sym;
-                       codeLensIndex++;
-                   } else {
-                       int runLen;
-                       int runVal = 0;
-                       if (sym == 16) {
-                           if (codeLensIndex == 0)
-                                printf("Dataformat exception : No code length value to copy");
-                           runLen = _read_int(2) + 3;
-                           runVal = codeLens[codeLensIndex - 1];
-                       } else if (sym == 17)
-                           runLen = _read_int(3) + 3;
-                       else if (sym == 18)
-                           runLen = _read_int(7) + 11;
-                       else
-                           printf("AssertionError : Symbol out of range");
-                       int _end = codeLensIndex + runLen;
-                       if (_end > numLitLenCodes + numDistCodes)
-                           printf("DataFormatException : Run exceeds number of codes");
-                       for(int i=codeLensIndex ;i <_end ;i++)
-                           codeLens[i] = runVal;
-                       codeLensIndex = _end;
-                   }
-              }
-
-              // Create literal-length code tree
-              int litLenCodeLen[numLitLenCodes];
-              for(int i=0;i<numLitLenCodes;i++){
-                   litLenCodeLen[i] = codeLens[i];
-              }
-              CanonicalCode litLenCode = CanonicalCode(litLenCodeLen,numLitLenCodes);
-
-              int distCodeLen[numLitLenCodes + numDistCodes  - numLitLenCodes];
-              for(int i = 0 ; i<numLitLenCodes + numDistCodes - numLitLenCodes;i++){
-                  if(numLitLenCodes+i > numLitLenCodes + numDistCodes)
-                      distCodeLen[i] =  0;
-                  else
-                      distCodeLen[i] =  codeLens[numLitLenCodes+i];
-              }
-              bool check_distCode_null = false ;
-              if ((numLitLenCodes + numDistCodes  - numLitLenCodes) == 1 && distCodeLen[0] == 0)
-                  check_distCode_null = true;
-              else{
-                  int oneCount = 0;
-                  int otherPositiveCount = 0;
-                  for(int i=0;i<numLitLenCodes + numDistCodes  - numLitLenCodes;i++){
-                        if(distCodeLen[i] == 1)
-                              oneCount += 1;
-                        else if(distCodeLen[i] > 1)
-                              otherPositiveCount += 1;
-                 }
-
-                 if (oneCount == 1 && otherPositiveCount == 0) {
-                        int  distCodeLen2[32];
-                        for(int i =0 ;i<31;i++){
-                              if(i < numLitLenCodes + numDistCodes  - numLitLenCodes)
-                                  distCodeLen2[i] = distCodeLen[i];
-                              else
-                                  distCodeLen2[i] = 0;
-                        }
-                        distCodeLen2[31] = 1;
-                 }
-              }
-              /*
-              if(check_distCode_null)
-                    CanonicalCode distCode = CanonicalCode([],0);
-              else
-                    CanonicalCode distCode = CanonicalCode(distCodeLen2,32);
-              CanonicalCode[] re[2] = {litLenCode, distCode};
-              return re;
-              *//*
-        }
-        void _decompress_huffman_block(CanonicalCode litLenCode, CanonicalCode distCode){
-            while(true){
-                int sym = litLenCode.decode_next_symbol(_input);
-                if(sym == 256)
-                    break;
-                if(sym < 256){
-                   // _output.write(sym);
-                    _dictionary.append(sym);
-                } else {
-                    int run = decode_run_length(sym);
-                    if( 3 <= run || run <= 258)
-                        printf("invalid run length");
-                    //if(distCode == NULL)   how to check canonicalcode is null or not
-                    //    printf("Length symbol encountered with empty distance code");
-                    int distSym = distCode.decode_next_symbol(_input);
-                    int dist = _decode_distance(distSym);
-                    if(dist<1 || dist > 32768)
-                        printf("invalid distance");
-                    _dictionary._copy(dist, run,_output);
-                }
-            }
-        };
-
-
-
-        int decode_run_length(int sym){
-            if( 257 <= sym && sym <= 287){
-                if(sym <=264)
-                    return sym-254;
-                else if(sym <=284){
-                    int numextrabits = (sym - 261) / 4;
-                    return (((sym - 265) % 4 + 4) << numextrabits) + 3 + _read_int(numextrabits);
-                }
-                else if(sym == 285)
-                    return 258;
-                else
-                    printf("Reserved length symbol: %d",sym);
-
-            }
-            else
-                printf("Invalid run length symbol: %d",sym);
-        }
-
-        int _decode_distance(int sym){
-            if( 0 <= sym && sym <= 31){
-                if(sym <=3)
-                    return sym+1;
-                else if(sym <=29){
-                    int numextrabits = sym / 2 - 1 ;
-                    return ((sym % 2 + 2) << numextrabits) + 1 + _read_int(numextrabits);
-                }
-                else
-                    printf("Reserved distance symbol: %d",sym);
-            }
-            else
-                printf("Invalid distance symbol: %d",sym);
-        }
-
-
- //   public :
-/*
-    @staticmethod
-	def decompress_to_bytes(bitin):
-		"""Reads from the given input stream, decompress the data, and returns a new byte list."""
-		out = io.BytesIO() if python3 else StringIO.StringIO()
-		Decompressor.decompress_to_stream(bitin, out)
-		return out.getvalue()
-
-
-	@staticmethod
-	def decompress_to_stream(bitin, out):
-		"""Reads from the given input stream, decompress the data, and writes to the given output stream."""
-		Decompressor(bitin, out)
-
-
-};
-*/
 int main(int argc, char**argv)
 {
     FILE *fileptr;
@@ -736,7 +557,7 @@ int main(int argc, char**argv)
     long filelen;
     char infile[] = "input.gz";
     char outfile[] = "output";
-    int read_index=0; //for inp.read(1) in py
+
     fileptr = fopen(infile, "rb");  // Open the file in binary mode
     fseek(fileptr, 0, SEEK_END);          // Jump to the end of the file
     filelen = ftell(fileptr);             // Get the current byte offset in the file
@@ -777,7 +598,7 @@ int main(int argc, char**argv)
 // Modification time
     printf("\ncheckpoint 4");
     int mtime;
-    int temp16;
+    int temp16,tmp162;
     temp16 = ((unsigned char)buffer[read_index] | ((unsigned char)buffer[read_index+1]) << 8);
     read_index +=2;
     //printf("\n%d",temp16);
@@ -822,7 +643,7 @@ int main(int argc, char**argv)
         case 9: printf("\nOperating system: CP/M");break;
         case 10: printf("\nOperating system: TOPS-20");break;
         case 11: printf("\nOperating system: NTFS");break;
-        case 12: printf("\nOperating system: QDOS");break;
+        case 12: printf("\nOperating system: QDaOS");break;
         case 13: printf("\nOperating system: Acorn RISCOS");break;
         case 255: printf("\nOperating system: Unknown");break;
         default : printf("Operating system: Really unknown");break;
@@ -872,27 +693,54 @@ int main(int argc, char**argv)
 
 //Decompress
     try{
-        unsigned char *bdecom , out;
+        temp16 = ((unsigned char)buffer[filelen-4] | ((unsigned char)buffer[filelen-3]) << 8);
+        tmp162 =((unsigned char)buffer[filelen-2] | ((unsigned char)buffer[filelen-1]) << 8);
+        uint32_t decompsize = temp16 | (tmp162 << 16);
+        unsigned char *bdecom;
+
+        unsigned char out[decompsize];
         bdecom = (unsigned char *)malloc((filelen+1-read_index)*sizeof(char));
         for(int i=0;i<filelen+1-read_index;i++)
             bdecom[i] = buffer[read_index+i];
         for(int i=0;i<filelen+1-read_index;i++)  {
             printf("%02x ",(unsigned char)bdecom[i]);
         }
-        cout << "yea" ;
+        for(int i=0;i<decompsize;i++)
+            out[i] = '0';
         BitInputStream bitin = BitInputStream(bdecom);
         Decompressor(bitin,out);
        // unsigned char decomp = d.decompress_to_bytes(bitin);
-/*try:
-				bitin = deflatedecompress.BitInputStream(inp)
-				decomp = deflatedecompress.Decompressor.decompress_to_bytes(bitin)
-*/
-    }
-    catch (exception& e){
-        cout <<"Standard exception: " <<  e.what() << '\n';
-    }
+
+        printf("\n");
+
+        uint32_t crc,_size;
+        temp16 = ((unsigned char)buffer[read_index] | ((unsigned char)buffer[read_index+1]) << 8);
+        read_index +=2;
+
+        tmp162 = ((unsigned char)buffer[read_index] | ((unsigned char)buffer[read_index+1]) << 8);
+        crc = temp16 | (tmp162 << 16);
+        read_index +=2;
 
 
+        temp16 = ((unsigned char)buffer[read_index] | ((unsigned char)buffer[read_index+1]) << 8);
+        read_index +=2;
 
+        tmp162 = ((unsigned char)buffer[read_index] | ((unsigned char)buffer[read_index+1]) << 8);
+        _size = temp16 | (tmp162 << 16);
+        read_index +=2;
+
+        printf("\noutta here : ");
+        for(int i=0;i<decompsize;i++){
+            cout << out[i];
+        }
+        FILE * pFile;
+        pFile = fopen ("output", "wb");
+        fwrite (out , sizeof(unsigned char),decompsize , pFile);
+        fclose (pFile);
+
+        }
+        catch (exception& e){
+            cout <<"Standard exception: " <<  e.what() << '\n';
+        }
     return 0;
 }
