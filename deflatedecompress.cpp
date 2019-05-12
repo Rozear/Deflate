@@ -11,8 +11,8 @@ class CanonicalCode
 {
     public:
         int MAX_CODE_LENGTH = 15;
-        int symbolCodeBits[1000] ;
-        int symbolValues[1000] ;
+        int symbolCodeBits[4000] ;
+        int symbolValues[4000] ;
         int numSymbolsAllocated =0;
         CanonicalCode(int *codeLengths,int len){
             int _max = 0;
@@ -58,7 +58,7 @@ class ByteHistory
     public:
 //assume size always  32768
         int _size = 32768;
-        int _data[32768] = { 0 };
+        int _data[32768];
         int _index;
 
         ByteHistory(){
@@ -75,7 +75,7 @@ class ByteHistory
             }
         }
 //_out is int(?) >> OutputStream
-        void _copy(int _dist,int _count,unsigned char * _out,int oindex){
+        void _copy(int _dist,int _count,unsigned char * _out,int & oindex){
             if(_count < 0 || !(1<=_dist && _dist <= _size)){
                 printf("error from ByteHistory");
             }
@@ -87,7 +87,7 @@ class ByteHistory
                 //out.write(bytes((b,)) if python3 else chr(b)) => write(char(b))
                     _out[oindex] = (unsigned char)b ;
                     oindex += 1;
-                    printf("\nout.write from bytehistory : %02x\n",(unsigned char) b);
+            //        printf("\nout.write from bytehistory : %02x\n",(unsigned char) b);
                     append(b);
                 }
             }
@@ -426,7 +426,7 @@ int decodeDistance(int sym,BitInputStream &_input){
 }
 
 
-void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, BitInputStream &_input, ByteHistory &_dictionary, unsigned char * output,int oindex){
+void decompressHuffmanBlock(CanonicalCode litLenCode, CanonicalCode distCode, BitInputStream &_input, ByteHistory &_dictionary, unsigned char * output,int &oindex){
     while (true) {
 
             int sym = decode_next_symbol(_input,litLenCode);
@@ -531,13 +531,13 @@ void decompressUncompressedBlock(BitInputStream &_input, ByteHistory &_dictionar
             CanonicalCode * litLenAndDist = _decode_huffman_codes(_input);
             /*for(int i=0;i<numSymbolsAllocated;i++){
                 printf("\nCode : %d Symbol : %d",symbolCodeBits[i],symbolValues[i]);
-            }*//*
+            }*/
             for(int i=0;i<litLenAndDist[0].numSymbolsAllocated;i++){
                 printf("\nCode : %d Symbol : %d",litLenAndDist[0].symbolCodeBits[i],litLenAndDist[0].symbolValues[i]);
             }
             for(int i=0;i<litLenAndDist[1].numSymbolsAllocated;i++){
                 printf("\nCode : %d Symbol : %d",litLenAndDist[1].symbolCodeBits[i],litLenAndDist[1].symbolValues[i]);
-            }*/
+            }
 //******************************************************************************************************
             decompressHuffmanBlock(litLenAndDist[0],litLenAndDist[1],_input,_dictionary,_output,oindex);
         }
@@ -555,7 +555,7 @@ int main(int argc, char**argv)
     unsigned char *buffer;
     unsigned char compmeth,flag,extraflags,osbyte;
     long filelen;
-    char infile[] = "input.gz";
+    char infile[] = "C:\\Users\\User\\Desktop\\Rozario\\zrsly\\4\\2\\sp\\src\\cpp\\!final\\zippedfile\\864.gz";
     char outfile[] = "output";
 
     fileptr = fopen(infile, "rb");  // Open the file in binary mode
@@ -730,6 +730,7 @@ int main(int argc, char**argv)
         read_index +=2;
 
         printf("\noutta here : ");
+         cout << decompsize;
         for(int i=0;i<decompsize;i++){
             cout << out[i];
         }
